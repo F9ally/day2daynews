@@ -2,7 +2,7 @@
   "expo": {
     "name": "Day2Day News",
     "slug": "day2day-news",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "sdkVersion": "54.0.0",
     "entryPoint": "index.js",
     "orientation": "portrait",
