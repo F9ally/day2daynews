@@ -1,15 +1,14 @@
 """
 scripts/generate_monthly_summary.py
 
-Aggregates a full calendar month of daily digests (from the `daily_digests`
-Supabase table) into one structured "Monthly Summary": one entry per topic,
+Aggregates a full calendar month of daily digests (from data/daily/*.json)
+into one structured "Monthly Summary": one entry per topic,
 each a paragraph synthesizing that topic's most important stories for the
 month, with duplicate/overlapping stories merged rather than repeated.
 
-Output is published to a dedicated `monthly_digests` Supabase table (see
-scripts/monthly_digests_schema.sql for the required schema/RLS setup) and,
-like the daily digest, a spoken-audio narration is generated and uploaded to
-the `news-audio` storage bucket under the key `monthly-<YYYY-MM>.mp3`.
+Output is written to data/monthly/<YYYY-MM>.json and, like the daily digest,
+a spoken-audio narration is written to audio/monthly-<YYYY-MM>.mp3 (only the
+latest monthly file is kept). scripts/publish_site.sh then publishes them.
 
 Usage:
     python scripts/generate_monthly_summary.py
@@ -39,13 +38,9 @@ from fetch_and_publish_digest import (  # noqa: E402
     compile_digest,
     build_narration_text_from_compiled,
     generate_audio_with_kokoro,
-    ensure_supabase_bucket,
-    upload_audio_to_supabase,
     ensure_ollama_ready,
 )
-
-MONTHLY_TABLE_DEFAULT = "monthly_digests"
-AUDIO_BUCKET = "news-audio"
+import site_io  # noqa: E402
 
 
 # --- Month selection ---------------------------------------------------------
@@ -70,44 +65,6 @@ def month_bounds(month_str: str) -> Tuple[str, str]:
 def month_label(month_str: str) -> str:
     year, month = (int(x) for x in month_str.split("-"))
     return date(year, month, 1).strftime("%B %Y")
-
-
-# --- Fetch daily digests for the month ---------------------------------------
-
-def fetch_daily_digests_for_month(
-    base_url: str,
-    api_key: str,
-    table: str,
-    first_day: str,
-    last_day: str,
-) -> List[Dict[str, Any]]:
-    url = f"{base_url}/rest/v1/{table}"
-    headers = {
-        "apikey": api_key,
-        "Authorization": f"Bearer {api_key}",
-    }
-    # PostgREST requires the same column filter passed as repeated query params
-    # (e.g. ?date=gte.X&date=lte.Y) for an AND range condition; requests needs a
-    # list of tuples (not a dict) to send duplicate keys.
-    params = [
-        ("select", "date,items,compiled"),
-        ("date", f"gte.{first_day}"),
-        ("date", f"lte.{last_day}"),
-        ("order", "date.asc"),
-    ]
-    try:
-        r = requests.get(url, headers=headers, params=params, timeout=30)
-    except requests.RequestException as e:
-        print(f"[Supabase] Request error fetching daily digests: {e}")
-        return []
-    if r.status_code != 200:
-        print(f"[Supabase] Failed to fetch daily digests: {r.status_code} - {r.text[:300]}")
-        return []
-    try:
-        return r.json() or []
-    except ValueError:
-        print("[Supabase] Failed to decode daily digests JSON response.")
-        return []
 
 
 # --- Grouping & de-duplication ------------------------------------------------
@@ -232,43 +189,6 @@ Summary: [Your single synthesized paragraph here]
     return f"Headline: {topic} Monthly Summary\nSummary:\n• [ERROR: Could not summarize {topic} with {model or 'gemma3:4b'} after 3 attempts]"
 
 
-# --- Supabase upsert -----------------------------------------------------------
-
-def upsert_supabase_monthly_digest(
-    base_url: str,
-    service_role_key: str,
-    table: str,
-    month_str: str,
-    compiled: str,
-    items: List[Dict[str, Any]],
-) -> Tuple[bool, str]:
-    if not base_url.startswith("http"):
-        return False, "Invalid SUPABASE_URL; must start with http(s)."
-
-    url = f"{base_url}/rest/v1/{table}"
-    headers = {
-        "apikey": service_role_key,
-        "Authorization": f"Bearer {service_role_key}",
-        "Content-Type": "application/json",
-        # Merge-duplicates requires a unique constraint on `month` in the target table.
-        "Prefer": "return=representation,resolution=merge-duplicates",
-    }
-    payload = {
-        "month": month_str,
-        "compiled": compiled,
-        "items": items,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=30)
-        if r.status_code in (200, 201):
-            return True, "Inserted monthly digest into Supabase."
-        return False, f"Supabase insert failed: {r.status_code} - {r.text[:300]}"
-    except requests.RequestException as e:
-        return False, f"Supabase request error: {e}"
-
-
 # --- Main ----------------------------------------------------------------------
 
 def main() -> int:
@@ -289,17 +209,7 @@ def main() -> int:
     ollama_model = cfg.get("OLLAMA_MODEL") or "gemma3:4b"
     ensure_ollama_ready(ollama_model, max_retries=30, timeout_secs=2)
 
-    daily_table = cfg.get("SUPABASE_TABLE") or "daily_digests"
-    monthly_table = cfg.get("SUPABASE_MONTHLY_TABLE") or MONTHLY_TABLE_DEFAULT
-
-    missing = [k for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY") if not cfg.get(k)]
-    if missing:
-        print(f"Missing config values: {', '.join(missing)}. Check ven.env.")
-        return 1
-
-    rows = fetch_daily_digests_for_month(
-        cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], daily_table, first_day, last_day
-    )
+    rows = site_io.read_daily_rows(first_day, last_day)
     if not rows:
         print(f"[MonthlySummary] No daily digests found for {target_month}; nothing to summarize.")
         return 0
@@ -338,15 +248,9 @@ def main() -> int:
 
     compiled = compile_digest(monthly_items)
 
-    ok, msg = upsert_supabase_monthly_digest(
-        cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], monthly_table, target_month, compiled, monthly_items
-    )
-    print(msg)
-    if not ok:
-        print("Note: Supabase insert failed. Ensure the monthly_digests table exists (see scripts/monthly_digests_schema.sql).")
-        return 1
+    print(f"Wrote monthly digest: {site_io.write_monthly_json(target_month, compiled, monthly_items)}")
 
-    # Generate and upload audio narration.
+    # Generate audio narration (only the latest monthly file is kept).
     try:
         narration = build_narration_text_from_compiled(
             compiled,
@@ -365,35 +269,18 @@ def main() -> int:
                 audio_segment.export(mp3_io, format="mp3", bitrate="128k")
                 audio_bytes = mp3_io.getvalue()
                 file_ext = "mp3"
-                content_type = "audio/mpeg"
                 print(f"[Audio] Converted to MP3 ({len(audio_bytes)} bytes)")
             except Exception as conv_err:
                 print(f"[Audio] MP3 conversion failed ({conv_err}), using WAV fallback")
                 file_ext = "wav"
-                content_type = "audio/wav"
 
-            bucket = AUDIO_BUCKET
-            ensure_supabase_bucket(cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket)
-            obj_path = f"monthly-{target_month}.{file_ext}"
-            up_ok, up_msg = upload_audio_to_supabase(
-                cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket, obj_path, audio_bytes, content_type
-            )
-            if not up_ok:
-                print(up_msg)
-                print("[Audio] Upload failed; waiting 30 seconds before one retry...")
-                time.sleep(30)
-                up_ok, up_msg = upload_audio_to_supabase(
-                    cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket, obj_path, audio_bytes, content_type
-                )
-            print(up_msg)
-            if up_ok:
-                public_url = f"{cfg['SUPABASE_URL']}/storage/v1/object/public/{bucket}/{obj_path}"
-                print(f"[Audio] Public URL: {public_url}")
+            print(f"[Audio] Wrote {site_io.write_audio(f'monthly-{target_month}.{file_ext}', audio_bytes)}")
         else:
-            print("[Audio] Skipping upload because audio generation failed or returned empty data")
+            print("[Audio] Skipping audio because audio generation failed or returned empty data")
     except Exception as e:
         print(f"[Audio] Unexpected error during monthly audio pipeline: {e}")
 
+    print(f"Updated index: {site_io.update_index()}")
     print(f"[MonthlySummary] Done for {target_month}.")
     return 0
 

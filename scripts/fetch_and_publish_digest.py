@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+import site_io
 from io import BytesIO
 import threading
 import subprocess
@@ -85,10 +86,6 @@ def load_config() -> Dict[str, Any]:
     cfg["NEWS_QUERY"] = (pick("NEWS_QUERY") or "").strip()
     cfg["NEWS_FROM"] = (pick("NEWS_FROM") or "").strip()
     cfg["NEWS_TO"] = (pick("NEWS_TO") or "").strip()
-    cfg["SUPABASE_URL"] = (pick("SUPABASE_URL", "") or "").rstrip("/")
-    cfg["SUPABASE_SERVICE_ROLE_KEY"] = pick("SUPABASE_SERVICE_ROLE_KEY", "")
-    cfg["SUPABASE_ANON_KEY"] = pick("SUPABASE_ANON_KEY", "")
-    cfg["SUPABASE_TABLE"] = pick("SUPABASE_TABLE", "daily_digests") or "daily_digests"
     cfg["OLLAMA_MODEL"] = pick("OLLAMA_MODEL", "gemma3:4b") or "gemma3:4b"
     cfg["SMTP_HOST"] = pick("SMTP_HOST")
     cfg["SMTP_PORT"] = pick("SMTP_PORT", "465")
@@ -520,46 +517,6 @@ def compile_digest(items: List[Dict[str, str]]) -> str:
         )
         html_blocks.append(block)
     return "\n".join(html_blocks)
-# --- Supabase insert --------------------------------------------------------
-
-def upsert_supabase_digest(
-    base_url: str,
-    service_role_key: str,
-    table: str,
-    compiled: str,
-    items: List[Dict[str, Any]],
-) -> Tuple[bool, str]:
-    if not base_url.startswith("http"):
-        return False, "Invalid SUPABASE_URL; must start with http(s)."
-
-    url = f"{base_url}/rest/v1/{table}"
-    headers = {
-        "apikey": service_role_key,
-        "Authorization": f"Bearer {service_role_key}",
-        "Content-Type": "application/json",
-        # Ask PostgREST to return the inserted row and merge duplicates by a unique constraint if present
-        "Prefer": "return=representation,resolution=merge-duplicates",
-    }
-
-    # Store canonical ISO date for reliable filtering on the website
-    formatted_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    payload = {
-        "date": formatted_date,
-        "compiled": compiled,
-        "items": items,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=30)
-        if r.status_code in (200, 201):
-            return True, "Inserted digest into Supabase."
-        else:
-            return False, f"Supabase insert failed: {r.status_code} - {r.text[:300]}"
-    except requests.RequestException as e:
-        return False, f"Supabase request error: {e}"
-
-
 # --- Local fallback output --------------------------------------------------
 
 def save_local_fallback(compiled: str, items: List[Dict[str, Any]]) -> str:
@@ -894,64 +851,6 @@ def generate_audio_with_kokoro(text: str, voice: str = "am_michael") -> bytes:
     return b""
 
 
-def ensure_supabase_bucket(base_url: str, service_key: str, bucket: str) -> None:
-    """Ensure a public storage bucket exists. Ignore errors if it already exists."""
-    if not base_url:
-        return
-    url = f"{base_url}/storage/v1/bucket"
-    headers = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {"name": bucket, "public": True}
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=15)
-        if r.status_code in (200, 201):
-            print(f"[Storage] Created bucket '{bucket}'")
-        elif r.status_code == 409:
-            # Bucket already exists
-            pass
-        elif r.status_code == 400:
-            # Some Supabase setups return 400 with a JSON body indicating a duplicate (statusCode 409)
-            try:
-                body = r.json()
-            except Exception:
-                body = None
-            msg = (body or {}).get("message", "") if isinstance(body, dict) else r.text
-            if (isinstance(body, dict) and str((body or {}).get("statusCode")) == "409") or (
-                isinstance(msg, str) and ("Duplicate" in msg or "already exists" in msg)
-            ):
-                # Treat as already-existing bucket
-                pass
-            else:
-                print(f"[Storage] Bucket create status {r.status_code}: {r.text[:200]}")
-        else:
-            print(f"[Storage] Bucket create status {r.status_code}: {r.text[:200]}")
-    except requests.RequestException as e:
-        print(f"[Storage] Bucket create error: {e}")
-
-
-def upload_audio_to_supabase(base_url: str, service_key: str, bucket: str, path: str, data: bytes, content_type: str = "audio/wav") -> Tuple[bool, str]:
-    if not data:
-        return False, "No audio data to upload"
-    url = f"{base_url}/storage/v1/object/{bucket}/{path}"
-    headers = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": content_type,
-        "x-upsert": "true",  # overwrite if exists
-    }
-    try:
-        r = requests.post(url, headers=headers, data=data, timeout=60)
-        if r.status_code in (200, 201):
-            return True, "Uploaded audio to storage"
-        else:
-            return False, f"Storage upload failed: {r.status_code} - {r.text[:200]}"
-    except requests.RequestException as e:
-        return False, f"Storage upload error: {e}"
-
-
 # --- Ollama bootstrap -------------------------------------------------------
 
 def _ollama_http_ok() -> bool:
@@ -1100,13 +999,7 @@ def main() -> int:
     
     # Start a 20-minute watchdog to abort and email if the script overruns.
     watchdog = start_timeout_watchdog(20 * 60, cfg)
-    def _mask(val: Optional[str]) -> str:
-        if not val:
-            return "<empty>"
-        v = str(val)
-        return (v[:4] + "..." + v[-4:]) if len(v) > 8 else "<short>"
-    print(f"[Config] SUPABASE_URL={cfg.get('SUPABASE_URL','')} TABLE={cfg.get('SUPABASE_TABLE','')} KEY={_mask(cfg.get('SUPABASE_SERVICE_ROLE_KEY'))}")
-    missing = [k for k in ("NEWS_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY") if not cfg.get(k)]
+    missing = [k for k in ("NEWS_API_KEY",) if not cfg.get(k)]
     if missing:
         print(f"Missing config values: {', '.join(missing)}. Check ven.env.")
 
@@ -1155,7 +1048,7 @@ def main() -> int:
         print(f"[Ollama] Bootstrap error (non-fatal): {e}")
 
     # Summarize each
-    items_for_supabase: List[Dict[str, Any]] = []
+    digest_items: List[Dict[str, Any]] = []
     for item in fetched:
         # Normalize topic display: keep everything Title Case except ensure "US" stays uppercase
         raw_topic = item["topic"]
@@ -1171,7 +1064,7 @@ def main() -> int:
         )
         # Only include successful summaries in persisted items
         if "[ERROR:" not in summary:
-            items_for_supabase.append({
+            digest_items.append({
                 "topic": topic_title,
                 "title": item.get("title"),
                 "url": item.get("url"),
@@ -1179,19 +1072,18 @@ def main() -> int:
                 "summary": summary,
             })
 
-    compiled = compile_digest(items_for_supabase)
+    compiled = compile_digest(digest_items)
 
-    # Insert into Supabase even if some summaries failed; we exclude failures from items/compiled
-    ok, msg = upsert_supabase_digest(
-        cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], cfg["SUPABASE_TABLE"], compiled, items_for_supabase
-    )
-    print(msg)
-    if not ok:
-        print("Note: Supabase insert failed. Ensure your SUPABASE_URL is like https://<ref>.supabase.co and the key/table are valid.")
+    # Write the day's static JSON (failed summaries are already excluded from items/compiled).
+    # Skip if nothing succeeded so a bad re-run never overwrites a good day.
+    date_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if digest_items:
+        print(f"Wrote digest: {site_io.write_daily_json(date_iso, compiled, digest_items)}")
+    else:
+        print("No successful summaries; not writing a daily JSON file.")
 
-    # Generate and upload audio summary
+    # Generate audio summary (only the latest day's file is kept)
     try:
-        date_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         narration = build_narration_text_from_compiled(compiled)
         audio_bytes = generate_audio_with_kokoro(narration, voice="am_michael")
         if audio_bytes:
@@ -1204,38 +1096,22 @@ def main() -> int:
                 audio_segment.export(mp3_io, format="mp3", bitrate="128k")
                 audio_bytes = mp3_io.getvalue()
                 file_ext = "mp3"
-                content_type = "audio/mpeg"
                 print(f"[Audio] Converted to MP3 ({len(audio_bytes)} bytes, ~{len(audio_bytes)/(1024*1024):.1f}MB)")
             except Exception as conv_err:
                 print(f"[Audio] MP3 conversion failed ({conv_err}), using WAV fallback")
                 file_ext = "wav"
-                content_type = "audio/wav"
             
-            bucket = "news-audio"
-            ensure_supabase_bucket(cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket)
-            obj_path = f"{date_iso}.{file_ext}"
-            up_ok, up_msg = upload_audio_to_supabase(
-                cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket, obj_path, audio_bytes, content_type
-            )
-            if not up_ok:
-                # Handle potential free-tier throttling by pausing then retrying once
-                print(up_msg)
-                print("[Audio] Upload failed; waiting 30 seconds before one retry (possible free-tier pause)...")
-                time.sleep(30)
-                up_ok, up_msg = upload_audio_to_supabase(
-                    cfg["SUPABASE_URL"], cfg["SUPABASE_SERVICE_ROLE_KEY"], bucket, obj_path, audio_bytes, content_type
-                )
-            print(up_msg)
-            if up_ok:
-                public_url = f"{cfg['SUPABASE_URL']}/storage/v1/object/public/{bucket}/{obj_path}"
-                print(f"[Audio] Public URL: {public_url}")
+            if digest_items:
+                print(f"[Audio] Wrote {site_io.write_audio(f'{date_iso}.{file_ext}', audio_bytes)}")
         else:
-            print("[Audio] Skipping upload because audio generation failed or returned empty data")
+            print("[Audio] Skipping audio because generation failed or returned empty data")
     except Exception as e:
         print(f"[Audio] Unexpected error during audio pipeline: {e}")
 
+    print(f"Updated index: {site_io.update_index()}")
+
     # Always save local fallback
-    out_path = save_local_fallback(compiled, items_for_supabase)
+    out_path = save_local_fallback(compiled, digest_items)
     print(f"Saved local digest to: {out_path}")
 
     # Show remaining daily quota if observed

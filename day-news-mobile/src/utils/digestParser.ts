@@ -71,7 +71,7 @@ function extractHeadlineAndSummary(
 }
 
 /**
- * Parse raw DigestItem array from Supabase into display-ready items.
+ * Parse raw DigestItem array from the site data into display-ready items.
  */
 export function parseDigestItems(items: DigestItem[]): ParsedDigestItem[] {
   const seen = new Set<string>();

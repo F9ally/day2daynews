@@ -2,7 +2,7 @@
   "expo": {
     "name": "Day2Day News",
     "slug": "day2day-news",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "sdkVersion": "54.0.0",
     "entryPoint": "index.js",
     "orientation": "portrait",
@@ -42,10 +42,6 @@
         }
       ],
       "expo-asset"
-    ],
-    "extra": {
-      "supabaseUrl": "https://yahltrcxuvcgwdtsvmwk.supabase.co",
-      "supabaseAnonKey": "sb_publishable_h_TnmS8AogSHOCohx6E3PA_8skGUfwU"
-    }
+    ]
   }
 }

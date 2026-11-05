@@ -15,3 +15,4 @@ fi
 source "$VENV_DIR/bin/activate"
 
 python "$REPO_DIR/scripts/generate_monthly_summary.py" "$@"
+"$REPO_DIR/scripts/publish_site.sh"

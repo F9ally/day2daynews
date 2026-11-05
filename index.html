@@ -392,7 +392,6 @@
   </style>
 </head>
 <body>
-  <!-- Supabase credentials injected at runtime by server or build tool -->
   <div class="corner-links">
     <a href="about.html" class="corner-link about">
       <span class="rect-icon"></span>
@@ -605,7 +604,7 @@
       });
     });
 
-    // Audio summary play button logic (fetches from Supabase Storage by date)
+    // Audio summary play button logic (latest day only, see data/index.json)
     (function initAudioButton() {
       const btn = document.getElementById('play-audio');
       const icon = btn.querySelector('i');
@@ -648,9 +647,10 @@
       });
 
       function computeAudioUrl() {
+        // Only the latest day's narration is kept on the site (see data/index.json)
         const date = (typeof currentViewDate === 'string' && currentViewDate) ? currentViewDate : getDisplayDateUTC();
-        const bucket = 'news-audio';
-        return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${date}.mp3`;
+        const latest = siteIndex && siteIndex.audio && siteIndex.audio.daily;
+        return latest && latest.key === date ? latest.file : null;
       }
 
       function setIconPlaying(playing) {
@@ -665,6 +665,10 @@
 
       async function ensureSrcAndPlay() {
         const url = computeAudioUrl();
+        if (!url) {
+          showAudioPopup();
+          return;
+        }
         // If already set and paused, just play
         if (audio.src === url && audio.paused && !isLoading) {
           await audio.play().catch(()=>{});
@@ -1007,60 +1011,27 @@
     }
   </script>
 <script>
-  // Supabase REST API config
-  const SUPABASE_URL = 'https://yahltrcxuvcgwdtsvmwk.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_h_TnmS8AogSHOCohx6E3PA_8skGUfwU';
-  const SUPABASE_TABLE = 'daily_digests';
+  // Static data, rebuilt daily by scripts/publish_site.sh:
+  //   data/index.json            -> { dates: [...], months: [...], audio: { daily: {key, file} } }
+  //   data/daily/YYYY-MM-DD.json -> { date, compiled, items }
+  let siteIndex = null;
 
-  // Helper to fetch summaries from Supabase
-  async function fetchSummaries(query = '') {
-    let url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*`;
-    if (query) {
-      // If query is a date (YYYY-MM-DD), match date exactly; else search compiled text
-      const isDate = /^\d{4}-\d{2}-\d{2}$/.test(query.trim());
-      if (isDate) {
-        url += `&date=eq.${encodeURIComponent(query.trim())}`;
-      } else {
-        const escaped = query.replace(/'/g, "''");
-        const group = `(compiled.ilike.'*${escaped}*')`;
-        url += `&or=${encodeURIComponent(group)}`;
-      }
-    }
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      }
-    });
-    return res.ok ? await res.json() : [];
+  async function fetchJson(path) {
+    // no-cache = always revalidate (cheap 304), so a new day shows up straight away
+    const res = await fetch(path, { cache: 'no-cache' });
+    return res.ok ? await res.json() : null;
   }
 
-  // Fetch summaries up to (and excluding if useLt=true) a UTC date string
-  async function fetchSummariesUntil(dateStr, useLt = true) {
-    let url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*`;
-    if (dateStr) {
-      url += `&date=${useLt ? 'lt' : 'lte'}.${dateStr}`;
-    }
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      }
-    });
-    return res.ok ? await res.json() : [];
+  async function fetchIndex() {
+    const idx = await fetchJson('data/index.json');
+    if (idx) siteIndex = idx;
+    return siteIndex;
   }
 
-  // Fetch a single day's summary using exact date match (UTC date string YYYY-MM-DD)
+  // Fetch a single day's summary (UTC date string YYYY-MM-DD); returns [] or [row]
   async function fetchSummaryForDate(dateStr) {
-    const url = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&date=eq.${dateStr}`;
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      }
-    });
-    if (!res.ok) return [];
-    return await res.json();
+    const row = await fetchJson(`data/daily/${dateStr}.json`);
+    return row ? [row] : [];
   }
 
   // Time helpers (UTC/GMT)
@@ -1159,8 +1130,8 @@
 
   // Fetch all available dates
   async function fetchAllDates() {
-    const summaries = await fetchSummaries();
-    allDates = summaries.map(s => s.date).sort((a, b) => b.localeCompare(a));
+    const idx = await fetchIndex();
+    allDates = idx ? idx.dates.slice().sort((a, b) => b.localeCompare(a)) : [];
   }
 
   // Update navigation button visibility
@@ -1185,7 +1156,7 @@
 
   async function renderTodaySummary() {
     const displayDate = currentViewDate || getDisplayDateUTC();
-    const summaries = await fetchSummaryForDate(displayDate);
+    const [summaries] = await Promise.all([fetchSummaryForDate(displayDate), fetchIndex()]);
     const todayDiv = document.getElementById('today-summary');
     todayDiv.innerHTML = '';
     if (summaries.length) {

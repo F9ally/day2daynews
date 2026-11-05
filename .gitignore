@@ -36,6 +36,8 @@ ven.env.local
 
 ## App artifacts
 out/
+audio/
+staging/
 scripts/__pycache__/
 
 ## Editor

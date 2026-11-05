@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../config/supabase';
-import { SUPABASE_TABLE } from '../constants/theme';
+import { fetchJson, fetchIndex } from '../config/api';
 import { DigestRecord, ParsedDigestItem } from '../types';
 import { parseDigestItems, parseCompiledHtml } from '../utils/digestParser';
 import {
@@ -15,7 +14,7 @@ interface UseDigestReturn {
   currentDate: string;
   /** Parsed items ready for rendering */
   items: ParsedDigestItem[];
-  /** Raw record from Supabase */
+  /** Raw daily record (data/daily/<date>.json) */
   record: DigestRecord | null;
   /** Whether data is loading */
   loading: boolean;
@@ -53,18 +52,8 @@ export function useDigest(): UseDigestReturn {
   // Fetch all available dates
   const fetchAllDates = useCallback(async () => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from(SUPABASE_TABLE)
-        .select('date')
-        .order('date', { ascending: false });
-
-      if (fetchError) {
-        console.warn('Failed to fetch dates:', fetchError.message);
-        return;
-      }
-
-      const dates = (data ?? []).map((d: { date: string }) => d.date);
-      setAllDates(dates);
+      const index = await fetchIndex();
+      if (index) setAllDates([...index.dates].sort((a, b) => b.localeCompare(a)));
     } catch (e) {
       console.warn('fetchAllDates error:', e);
     }
@@ -76,20 +65,9 @@ export function useDigest(): UseDigestReturn {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from(SUPABASE_TABLE)
-        .select('*')
-        .eq('date', dateStr)
-        .limit(1);
+      const rec = await fetchJson<DigestRecord>(`data/daily/${dateStr}.json`);
 
-      if (fetchError) {
-        setError(fetchError.message);
-        setItems([]);
-        setRecord(null);
-        return;
-      }
-
-      if (!data || data.length === 0) {
+      if (!rec) {
         const label = isBeforeSixTwentyFiveUTC()
           ? 'yesterday'
           : 'today';
@@ -99,7 +77,6 @@ export function useDigest(): UseDigestReturn {
         return;
       }
 
-      const rec = data[0] as DigestRecord;
       setRecord(rec);
 
       // Prefer structured items; fall back to parsing compiled HTML

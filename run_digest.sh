@@ -15,3 +15,4 @@ fi
 source "$VENV_DIR/bin/activate"
 
 python "$REPO_DIR/scripts/fetch_and_publish_digest.py" "$@"
+"$REPO_DIR/scripts/publish_site.sh"

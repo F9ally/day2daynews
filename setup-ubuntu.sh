@@ -47,12 +47,6 @@ NEWS_LANG=en
 NEWS_COUNTRY=us
 NEWS_MAX=10
 
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
-SUPABASE_TABLE=daily_digests
-
 # Local LLM (Ollama)
 OLLAMA_MODEL=gemma3:4b
 

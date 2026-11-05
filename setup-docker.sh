@@ -127,8 +127,6 @@ if [ ! -f "ven.env" ]; then
     echo ""
     echo "Required credentials:"
     echo "  - NEWS_API_KEY: Your GNews API key"
-    echo "  - SUPABASE_URL: Your Supabase project URL"
-    echo "  - SUPABASE_SERVICE_ROLE_KEY: Your Supabase service role key"
     echo ""
 else
     echo -e "${GREEN}✓ ven.env already exists${NC}"

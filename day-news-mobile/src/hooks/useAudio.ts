@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createAudioPlayer, setAudioModeAsync, AudioPlayer } from 'expo-audio';
-import { SUPABASE_URL, AUDIO_BUCKET } from '../constants/theme';
+import { DATA_BASE_URL, fetchIndex } from '../config/api';
 
 interface UseAudioReturn {
   isPlaying: boolean;
@@ -47,9 +47,11 @@ export function useAudio(identifier: string, kind: 'daily' | 'monthly' = 'daily'
     }
   }, [identifier, kind]);
 
-  const getAudioUrl = useCallback(() => {
-    const filename = kind === 'monthly' ? `monthly-${identifier}.mp3` : `${identifier}.mp3`;
-    return `${SUPABASE_URL}/storage/v1/object/public/${AUDIO_BUCKET}/${filename}`;
+  // Only the latest daily and monthly narration is kept on the site; data/index.json says which.
+  const getAudioUrl = useCallback(async (): Promise<string | null> => {
+    const index = await fetchIndex();
+    const entry = index?.audio?.[kind];
+    return entry && entry.key === identifier ? `${DATA_BASE_URL}/${entry.file}` : null;
   }, [identifier, kind]);
 
   const play = useCallback(async () => {
@@ -71,16 +73,13 @@ export function useAudio(identifier: string, kind: 'daily' | 'monthly' = 'daily'
       }
 
       setIsLoading(true);
-      const url = getAudioUrl();
-
-      // Verify the file exists before loading
+      let url: string | null = null;
       try {
-        const headRes = await fetch(url, { method: 'HEAD' });
-        if (!headRes.ok) {
-          setAudioUnavailable(true);
-          return;
-        }
+        url = await getAudioUrl();
       } catch {
+        // network error: treated as unavailable below
+      }
+      if (!url) {
         setAudioUnavailable(true);
         return;
       }

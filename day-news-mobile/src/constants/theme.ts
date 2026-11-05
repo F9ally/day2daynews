@@ -54,9 +54,3 @@ export const FONT_SIZE_BASE = 16;
 export const FONT_SIZE_STEP = 2;
 export const FONT_SIZE_MIN_LEVEL = -2;
 export const FONT_SIZE_MAX_LEVEL = 2;
-
-export const SUPABASE_URL = 'https://yahltrcxuvcgwdtsvmwk.supabase.co';
-export const SUPABASE_ANON_KEY = 'sb_publishable_h_TnmS8AogSHOCohx6E3PA_8skGUfwU';
-export const SUPABASE_TABLE = 'daily_digests';
-export const MONTHLY_SUPABASE_TABLE = 'monthly_digests';
-export const AUDIO_BUCKET = 'news-audio';

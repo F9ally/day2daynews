@@ -10,5 +10,7 @@ services:
       - OLLAMA_HOST=http://127.0.0.1:11434
     volumes:
       - ./out:/app/out
+      - ./data:/app/data
+      - ./audio:/app/audio
     network_mode: host
     restart: "no"
