@@ -650,7 +650,8 @@
         // Only the latest day's narration is kept on the site (see data/index.json)
         const date = (typeof currentViewDate === 'string' && currentViewDate) ? currentViewDate : getDisplayDateUTC();
         const latest = siteIndex && siteIndex.audio && siteIndex.audio.daily;
-        return latest && latest.key === date ? latest.file : null;
+        // absolute URL so it compares equal to audio.src (the toggle/pause check relies on that)
+        return latest && latest.key === date ? new URL(latest.file, location.href).href : null;
       }
 
       function setIconPlaying(playing) {
