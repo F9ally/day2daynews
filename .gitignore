@@ -38,6 +38,8 @@ ven.env.local
 out/
 audio/
 staging/
+.published_state
+.digest.lock
 scripts/__pycache__/
 
 ## Editor

@@ -86,6 +86,7 @@ def load_config() -> Dict[str, Any]:
     cfg["NEWS_QUERY"] = (pick("NEWS_QUERY") or "").strip()
     cfg["NEWS_FROM"] = (pick("NEWS_FROM") or "").strip()
     cfg["NEWS_TO"] = (pick("NEWS_TO") or "").strip()
+    cfg["NEWS_BLOCK_RE"] = build_block_regex(pick("NEWS_BLOCKLIST", "") or "")
     cfg["OLLAMA_MODEL"] = pick("OLLAMA_MODEL", "gemma3:4b") or "gemma3:4b"
     cfg["SMTP_HOST"] = pick("SMTP_HOST")
     cfg["SMTP_PORT"] = pick("SMTP_PORT", "465")
@@ -146,6 +147,41 @@ def _is_article_relevant(category: Optional[str], article: Dict[str, Any]) -> bo
     return hits >= 1
 
 
+# --- Content filter ----------------------------------------------------------
+# Keeps the digest pleasant: skips stories about death/violence, abuse and adult
+# content, and piracy/hacking. Matches whole words in the title + description.
+# Add your own words (comma separated) with NEWS_BLOCKLIST in ven.env.
+_BLOCKED_PATTERNS: List[str] = [
+    # death / violence
+    r"dead", r"deaths?", r"dies", r"died", r"dying", r"deadly", r"fatal(?:ly|ities|ity)?",
+    r"kill(?:s|ed|ing|er|ers|ings)?", r"murder(?:s|ed|er|ers|ing)?", r"homicides?",
+    r"manslaughter", r"slain", r"suicides?", r"(?:took|take|takes|taken|taking) (?:(?:his|her|their|my) )?own li(?:fe|ves)",
+    r"funerals?", r"obituar(?:y|ies)", r"massacres?", r"shootings?", r"shot dead",
+    r"stabb(?:ed|ing|ings)", r"overdos(?:e|es|ed)", r"bod(?:y|ies) found",
+    r"terror(?:ist|ists|ism)?", r"bomb(?:s|ing|ings|ed)?", r"victims?", r"war crimes?",
+    # abuse / adult content
+    r"rape[ds]?", r"rapist", r"sexual(?:ly)?", r"sex", r"porn\w*", r"explicit", r"nude", r"nudes",
+    r"abus(?:e|es|ed|ing|er)", r"paedophil\w*", r"pedophil\w*", r"trafficking", r"grooming",
+    # piracy / hacking / online crime
+    r"pirat(?:e|es|ed|ing|y)", r"torrent\w*", r"hack(?:s|ed|er|ers|ing)?",
+    r"cyber-?attacks?", r"ransomware", r"malware", r"data breach(?:es)?", r"dark web",
+    r"scam(?:s|med|mers)?", r"phishing",
+]
+
+
+def build_block_regex(extra: str = "") -> "re.Pattern[str]":
+    patterns = list(_BLOCKED_PATTERNS)
+    patterns += [re.escape(w.strip().lower()) for w in (extra or "").split(",") if w.strip()]
+    return re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE)
+
+
+def _is_article_appropriate(block_re: Optional["re.Pattern[str]"], article: Dict[str, Any]) -> bool:
+    if block_re is None:
+        return True
+    text = f"{article.get('title') or ''} {article.get('description') or ''}"
+    return block_re.search(text) is None
+
+
 # --- News API fetchers -----------------------------------------------------
 
 def _build_news_params(cfg: Dict[str, Any], category: str, page: int) -> Dict[str, Any]:
@@ -186,7 +222,12 @@ def _build_news_params(cfg: Dict[str, Any], category: str, page: int) -> Dict[st
     return params
 
 
-def try_gnews_api(cfg: Dict[str, Any], category: str, page: int = 1) -> Optional[Dict[str, Any]]:
+def try_gnews_api(cfg: Dict[str, Any], category: str, page: int = 1) -> Optional[List[Dict[str, Any]]]:
+    """Fetch one page of top headlines and return ALL its articles (normalized), or None.
+
+    Transient problems (rate limit 429, 5xx, network errors) are retried with a
+    short backoff so a busy API doesn't burn through the caller's attempts.
+    """
     if not cfg.get("NEWS_API_KEY"):
         print("[News API] Missing API key; set GNEWS_API_KEY or NEWS_API_KEY in ven.env.")
         return None
@@ -194,10 +235,20 @@ def try_gnews_api(cfg: Dict[str, Any], category: str, page: int = 1) -> Optional
     params = _build_news_params(cfg, category, page)
     url = cfg.get("NEWS_API_URL") or GNEWS_TOP_HEADLINES_URL
 
-    try:
-        response = requests.get(url, params=params, timeout=30)
-    except requests.RequestException as exc:
-        print(f"[News API] Request error for {category} page {page}: {exc}")
+    response = None
+    for try_no in range(1, 4):
+        try:
+            response = requests.get(url, params=params, timeout=30)
+        except requests.RequestException as exc:
+            print(f"[News API] Request error for {category} page {page} (try {try_no}/3): {exc}")
+            response = None
+        else:
+            if response.status_code != 429 and response.status_code < 500:
+                break
+            print(f"[News API] HTTP {response.status_code} for {category} page {page} (try {try_no}/3)")
+        if try_no < 3:
+            time.sleep(3 * try_no)
+    if response is None:
         return None
 
     quota_left = response.headers.get("X-RateLimit-Remaining") or response.headers.get("x-ratelimit-remaining")
@@ -224,19 +275,18 @@ def try_gnews_api(cfg: Dict[str, Any], category: str, page: int = 1) -> Optional
         print(f"[News API] No articles returned for {category} (page {page}).")
         return None
 
-    # Return the first article; callers handle duplicate / relevance filtering.
-    article = articles[0]
-    url_field = article.get("url") or (article.get("source") or {}).get("url")
-    content = article.get("content") or article.get("description") or ""
-
-    return {
-        "title": article.get("title"),
-        "description": article.get("description") or "",
-        "url": url_field,
-        "published_at": article.get("publishedAt") or article.get("published_at"),
-        "content": content,
-        "quota_left": quota_left,
-    }
+    normalized: List[Dict[str, Any]] = []
+    for article in articles:
+        url_field = article.get("url") or (article.get("source") or {}).get("url")
+        normalized.append({
+            "title": article.get("title"),
+            "description": article.get("description") or "",
+            "url": url_field,
+            "published_at": article.get("publishedAt") or article.get("published_at"),
+            "content": article.get("content") or article.get("description") or "",
+            "quota_left": quota_left,
+        })
+    return normalized
 
 
 def fetch_news_article_with_retries(
@@ -245,34 +295,33 @@ def fetch_news_article_with_retries(
     max_attempts: int = 1,
     global_exclude: Optional[set] = None,
 ) -> Optional[Dict[str, Any]]:
+    """Return the first article (over up to `max_attempts` pages) that is not a
+    duplicate, is on-topic and passes the content filter."""
     seen: set = set()
+    block_re = cfg.get("NEWS_BLOCK_RE")
     for attempt in range(1, max_attempts + 1):
-        article = try_gnews_api(cfg, category, page=attempt)
-        if not article:
-            print(f"[{category}] No article found on attempt {attempt}; retrying...")
+        candidates = try_gnews_api(cfg, category, page=attempt)
+        if not candidates:
+            print(f"[{category}] No articles on page {attempt}; trying next page...")
             continue
 
-        url = article.get("url") or ""
-        normalized = url.strip().lower() if url else ""
-        title_key = (article.get("title") or "").strip().lower()
-        key = normalized or title_key
-        # Cross-category deduplication: avoid articles seen in other sections
-        if global_exclude and key and key in global_exclude:
-            print(f"[{category}] Skipping globally-duplicate result; retrying...")
-            continue
-        if key and key in seen:
-            print(f"[{category}] Skipping duplicate result; retrying...")
-            continue
-
-        if not _is_article_relevant(category, article):
-            print(f"[{category}] Skipping off-topic result; retrying...")
+        for article in candidates:
+            url = article.get("url") or ""
+            normalized = url.strip().lower() if url else ""
+            title_key = (article.get("title") or "").strip().lower()
+            key = normalized or title_key
+            # Cross-category deduplication: avoid articles seen in other sections
+            if (global_exclude and key and key in global_exclude) or (key and key in seen):
+                continue
             if key:
                 seen.add(key)
-            continue
 
-        if key:
-            seen.add(key)
-        return article
+            if not _is_article_appropriate(block_re, article):
+                print(f"[{category}] Skipping unsuitable topic: {article.get('title')!r}")
+                continue
+            if not _is_article_relevant(category, article):
+                continue
+            return article
 
     print(f"[{category}] All attempts failed.")
     return None

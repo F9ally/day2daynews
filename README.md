@@ -35,6 +35,26 @@ Config lives in `ven.env` (copy `ven.env.example`): `NEWS_API_KEY`, `NEWS_API_UR
 
 `publish_site.sh` runs on the host and uses the repo's existing git credentials for `origin` (it needs push access to `main` and `deploy`). If you run the digest via `docker compose`, `data/` and `audio/` are mounted into the container; run `scripts/publish_site.sh` on the host afterwards.
 
+## Content filter
+
+Stories are skipped when their title/description contain whole words about death/violence, abuse/adult content, or piracy/hacking (see `_BLOCKED_PATTERNS` in `scripts/fetch_and_publish_digest.py`). The fetcher looks through every article on each page of results, so a blocked story just means the next one is used. Add your own words in `ven.env`:
+
+```
+NEWS_BLOCKLIST=word one,another phrase
+```
+
+## Scheduling and missed runs
+
+The normal daily run is whatever you already schedule (e.g. `run_digest_and_poweroff.sh` after the server wakes). As a safety net, add `run_catchup.sh` to the same user's crontab (`crontab -e`):
+
+```
+*/15 * * * * /home/ll/day-news/run_catchup.sh >> /home/ll/day-news/logs/catchup.log 2>&1
+```
+
+Every 15 minutes it checks for today's (UTC) digest. If it is missing and it is past 08:00 UTC (`NOT_BEFORE_UTC_HOUR`, set it just after your normal run time), it waits for the network, runs the digest and publishes, and does not power the server off. If the digest exists but was not published (e.g. no network at the time), it retries the publish. When everything is done it exits silently. So if the server is off at the normal time, the site is updated as soon as it is switched on. Days that were missed entirely are not backfilled.
+
+`scripts/publish_site.sh` is idempotent (no-op if nothing changed); use `FORCE=1 bash scripts/publish_site.sh` to republish anyway, e.g. after pulling a change to `index.html`.
+
 ## Monthly Summary
 
 `scripts/generate_monthly_summary.py` aggregates a calendar month of `data/daily/*.json` into one Monthly Summary: one synthesized paragraph per topic (duplicates merged, topics never mixed), written to `data/monthly/<YYYY-MM>.json` plus `audio/monthly-<YYYY-MM>.mp3` (older monthly audio is deleted).

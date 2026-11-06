@@ -11,6 +11,13 @@ if [ ! -d "$VENV_DIR" ]; then
   exit 1
 fi
 
+# One digest at a time (the scheduled run and run_catchup.sh can overlap).
+# run_catchup.sh already holds this lock and sets DIGEST_LOCK_HELD.
+if [ -z "${DIGEST_LOCK_HELD:-}" ]; then
+  exec 9>"$REPO_DIR/.digest.lock"
+  flock 9
+fi
+
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 
