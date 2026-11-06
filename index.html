@@ -1019,8 +1019,14 @@
 
   async function fetchJson(path) {
     // no-cache = always revalidate (cheap 304), so a new day shows up straight away
-    const res = await fetch(path, { cache: 'no-cache' });
-    return res.ok ? await res.json() : null;
+    // A missing file may come back as the home page (200 text/html) rather than a 404 -> treat as "not there"
+    try {
+      const res = await fetch(path, { cache: 'no-cache' });
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
   }
 
   async function fetchIndex() {

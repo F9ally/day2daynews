@@ -148,8 +148,9 @@ def _is_article_relevant(category: Optional[str], article: Dict[str, Any]) -> bo
 
 
 # --- Content filter ----------------------------------------------------------
-# Keeps the digest pleasant: skips stories about death/violence, abuse and adult
-# content, and piracy/hacking. Matches whole words in the title + description.
+# Keeps the digest pleasant: skips stories about death/violence and about
+# abuse/adult content. Matches whole words in the title + description.
+# (Piracy / hacking / cyberattack stories are deliberately allowed.)
 # Add your own words (comma separated) with NEWS_BLOCKLIST in ven.env.
 _BLOCKED_PATTERNS: List[str] = [
     # death / violence
@@ -158,14 +159,13 @@ _BLOCKED_PATTERNS: List[str] = [
     r"manslaughter", r"slain", r"suicides?", r"(?:took|take|takes|taken|taking) (?:(?:his|her|their|my) )?own li(?:fe|ves)",
     r"funerals?", r"obituar(?:y|ies)", r"massacres?", r"shootings?", r"shot dead",
     r"stabb(?:ed|ing|ings)", r"overdos(?:e|es|ed)", r"bod(?:y|ies) found",
-    r"terror(?:ist|ists|ism)?", r"bomb(?:s|ing|ings|ed)?", r"victims?", r"war crimes?",
-    # abuse / adult content
-    r"rape[ds]?", r"rapist", r"sexual(?:ly)?", r"sex", r"porn\w*", r"explicit", r"nude", r"nudes",
+    r"terror(?:ist|ists|ism)?", r"bomb(?:s|ing|ings|ed)?", r"explosions?", r"victims?", r"war crimes?",
+    # abuse / sexual / adult content
+    r"rape[ds]?", r"rapist", r"sexual(?:ly|ity)?", r"sex(?:ting|ist|ism|es)?", r"porn\w*", r"xxx", r"nsfw",
+    r"onlyfans", r"erotic\w*", r"fetish\w*", r"hentai", r"explicit", r"obscene", r"indecent",
+    r"nud(?:e|es|ity)", r"naked", r"topless", r"strip(?:per|pers| clubs?)", r"sex tapes?",
+    r"adult (?:content|films?|websites?|sites?|entertainment)", r"prostitut\w*", r"brothels?",
     r"abus(?:e|es|ed|ing|er)", r"paedophil\w*", r"pedophil\w*", r"trafficking", r"grooming",
-    # piracy / hacking / online crime
-    r"pirat(?:e|es|ed|ing|y)", r"torrent\w*", r"hack(?:s|ed|er|ers|ing)?",
-    r"cyber-?attacks?", r"ransomware", r"malware", r"data breach(?:es)?", r"dark web",
-    r"scam(?:s|med|mers)?", r"phishing",
 ]
 
 

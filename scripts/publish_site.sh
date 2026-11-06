@@ -15,7 +15,7 @@ cd "$REPO_DIR"
 
 STATE_FILE="$REPO_DIR/.published_state"
 site_state() {
-  find data audio index.html about.html site.webmanifest -type f 2>/dev/null \
+  find data audio index.html about.html 404.html site.webmanifest -type f 2>/dev/null \
     | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1
 }
 
@@ -40,7 +40,7 @@ fi
 STAGE="$REPO_DIR/staging"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
-cp index.html about.html site.webmanifest favicon-*.png icon-*.png "$STAGE"/
+cp index.html about.html 404.html site.webmanifest favicon-*.png icon-*.png "$STAGE"/
 cp -r data "$STAGE/data"
 [ -d audio ] && cp -r audio "$STAGE/audio"
 
