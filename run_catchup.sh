@@ -1,48 +1,38 @@
 #!/usr/bin/env bash
-# Safety net for a missed daily run (server was off at the scheduled time, no
-# network, digest crashed, publish failed...). Run it from cron every 15 minutes:
-#
-#   */15 * * * * /home/ll/day-news/run_catchup.sh >> /home/ll/day-news/logs/catchup.log 2>&1
-#
-# Every run it:
-#   - does nothing if another digest run is in progress
-#   - if today's (UTC) digest exists: just re-tries publishing (silent no-op if already published)
-#   - if it is missing and it's past NOT_BEFORE_UTC_HOUR (default 8, i.e. after the
-#     normal scheduled run had its chance): waits for the network, then runs the
-#     full digest + publish. It never powers the server off.
+# Safety net for a missed daily run. Runs ONCE per boot, 30 minutes after the
+# server starts (systemd timer deploy/systemd/day-news-catchup.timer, or cron
+# "@reboot sleep 1800 && .../run_catchup.sh"). It:
+#   - waits for any digest run that is still going (shared lock)
+#   - if today's (UTC) digest exists: re-tries publishing (silent no-op if
+#     already published), covering "built but push failed"
+#   - otherwise waits for the network, then builds + publishes it
+# It never powers the server off. Days the server was off entirely are not backfilled.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs"
+log() { echo "$(date -Is) [catchup] $*"; }
 
-NOT_BEFORE_UTC_HOUR="${NOT_BEFORE_UTC_HOUR:-8}"
-
-# One digest at a time; run_digest.sh takes the same lock for the scheduled run.
+# One digest at a time. Wait (up to 1h) for a scheduled run still in progress.
 exec 9>"$REPO_DIR/.digest.lock"
-flock -n 9 || exit 0
+if ! flock -w 3600 9; then log "Another digest run still holds the lock after 1h; giving up"; exit 1; fi
 export DIGEST_LOCK_HELD=1
 
 today="$(date -u +%F)"
-hour=$((10#$(date -u +%H)))
 
 if [ -f "data/daily/$today.json" ]; then
+  log "Digest for $today exists; making sure it is published"
   exec "$REPO_DIR/scripts/publish_site.sh"
 fi
 
-[ "$hour" -ge "$NOT_BEFORE_UTC_HOUR" ] || exit 0
-
-# Just after boot the network may not be up yet: wait up to ~5 minutes.
 online=0
 for _ in $(seq 1 20); do
   if curl -fsS -m 5 -o /dev/null https://gnews.io; then online=1; break; fi
   sleep 15
 done
-if [ "$online" -ne 1 ]; then
-  echo "$(date -Is) [catchup] No network; will retry next run"
-  exit 1
-fi
+if [ "$online" -ne 1 ]; then log "No network after 5 minutes; giving up until next boot"; exit 1; fi
 
-echo "$(date -Is) [catchup] Digest for $today is missing; running it now"
+log "Digest for $today is missing; running it now"
 "$REPO_DIR/run_digest.sh"
-echo "$(date -Is) [catchup] Done"
+log "Done"

@@ -1,0 +1,12 @@
+[Unit]
+Description=day-news: build/publish today's digest if it was missed
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Change User and paths if your checkout lives elsewhere.
+User=ll
+ExecStart=/home/ll/day-news/run_catchup.sh
+StandardOutput=append:/home/ll/day-news/logs/catchup.log
+StandardError=append:/home/ll/day-news/logs/catchup.log

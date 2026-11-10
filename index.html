@@ -1238,6 +1238,10 @@
         currentViewDate = null; // Back to today
       }
       renderAll();
+    } else if (currentIndex === 0) {
+      // Newest published day but today's isn't out yet: forward = today view
+      currentViewDate = null;
+      renderAll();
     }
   });
 

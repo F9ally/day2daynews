@@ -25,11 +25,10 @@ LOG_FILE="$LOG_DIR/digest.log"
 printf '%s Starting digest as %s from %s\n' "$(date -Is)" "$RUN_USER" "$REPO_DIR" >> "$LOG_FILE"
 
 # Execute the digest script as the repo owner/user
-if ! runuser -l "$RUN_USER" -c "\"$REPO_DIR/run_digest.sh\"" >> "$LOG_FILE" 2>&1; then
-  status=$?
-else
-  status=0
-fi
+set +e
+runuser -l "$RUN_USER" -c "\"$REPO_DIR/run_digest.sh\"" >> "$LOG_FILE" 2>&1
+status=$?
+set -e
 
 /usr/bin/logger -t day-news "Digest run exit status: $status"
 printf '%s Digest exit status: %s\n' "$(date -Is)" "$status" >> "$LOG_FILE"

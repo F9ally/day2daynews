@@ -1,0 +1,8 @@
+[Unit]
+Description=day-news: check for today's digest 30 minutes after boot
+
+[Timer]
+OnBootSec=30min
+
+[Install]
+WantedBy=timers.target

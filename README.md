@@ -45,13 +45,17 @@ NEWS_BLOCKLIST=word one,another phrase
 
 ## Scheduling and missed runs
 
-The normal daily run is whatever you already schedule (e.g. `run_digest_and_poweroff.sh` after the server wakes). As a safety net, add `run_catchup.sh` to the same user's crontab (`crontab -e`):
+The normal daily run is whatever you already schedule (e.g. `run_digest_and_poweroff.sh` after the server wakes at 06:20). As a safety net, `run_catchup.sh` runs **once, 30 minutes after every boot** via a systemd timer (one time setup on the server):
 
 ```
-*/15 * * * * /home/ll/day-news/run_catchup.sh >> /home/ll/day-news/logs/catchup.log 2>&1
+sudo cp deploy/systemd/day-news-catchup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable day-news-catchup.timer
 ```
 
-Every 15 minutes it checks for today's (UTC) digest. If it is missing and it is past 08:00 UTC (`NOT_BEFORE_UTC_HOUR`, set it just after your normal run time), it waits for the network, runs the digest and publishes, and does not power the server off. If the digest exists but was not published (e.g. no network at the time), it retries the publish. When everything is done it exits silently. So if the server is off at the normal time, the site is updated as soon as it is switched on. Days that were missed entirely are not backfilled.
+(Edit `User=` and the paths in the `.service` file if the checkout isn't `/home/ll/day-news`. If you'd rather use cron: `@reboot sleep 1800 && /home/ll/day-news/run_catchup.sh >> /home/ll/day-news/logs/catchup.log 2>&1`.)
+
+It waits for any digest run still in progress, then: if today's (UTC) digest is missing it builds and publishes it (never powers off); if it exists but wasn't published (e.g. the push failed) it retries the publish. Check it with `systemctl list-timers day-news-catchup.timer` and `tail logs/catchup.log`. Days that were missed entirely are not backfilled.
 
 `scripts/publish_site.sh` is idempotent (no-op if nothing changed); use `FORCE=1 bash scripts/publish_site.sh` to republish anyway, e.g. after pulling a change to `index.html`.
 
