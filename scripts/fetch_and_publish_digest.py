@@ -158,6 +158,8 @@ _BLOCKED_PATTERNS: List[str] = [
     r"onlyfans", r"erotic\w*", r"fetish\w*", r"hentai", r"explicit", r"obscene", r"indecent",
     r"nud(?:e|es|ity)", r"naked", r"topless", r"strip(?:per|pers| clubs?)", r"sex tapes?",
     r"adult (?:content|films?|websites?|sites?|entertainment)", r"prostitut\w*", r"brothels?",
+    r"penis(?:es)?", r"vagina[sl]?", r"vulvas?", r"labia", r"clitor\w*", r"genitals?", r"genitalia", r"scrotum",
+    r"testicles?", r"anus", r"nipples?", r"boobs?", r"tits", r"pussy", r"cunts?", r"erections?",
     r"abus(?:e|es|ed|ing|er)", r"paedophil\w*", r"pedophil\w*", r"trafficking", r"grooming",
 ]
 
