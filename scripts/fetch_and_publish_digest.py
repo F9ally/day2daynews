@@ -154,7 +154,7 @@ def _is_article_relevant(category: Optional[str], article: Dict[str, Any]) -> bo
 # Add your own words (comma separated) with NEWS_BLOCKLIST in ven.env.
 _BLOCKED_PATTERNS: List[str] = [
     # death / violence
-    r"dead", r"deaths?", r"dies", r"died", r"dying", r"deadly", r"fatal(?:ly|ities|ity)?",
+    r"dead", r"deaths?", r"dies", r"died", r"dying", r"deadly",
     r"kill(?:s|ed|ing|er|ers|ings)?", r"murder(?:s|ed|er|ers|ing)?", r"homicides?",
     r"manslaughter", r"slain", r"suicides?", r"(?:took|take|takes|taken|taking) (?:(?:his|her|their|my) )?own li(?:fe|ves)",
     r"funerals?", r"obituar(?:y|ies)", r"massacres?", r"shootings?", r"shot dead",
