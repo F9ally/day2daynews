@@ -159,9 +159,6 @@ _BLOCKED_PATTERNS: List[str] = [
     r"manslaughter", r"slain", r"suicides?", r"(?:took|take|takes|taken|taking) (?:(?:his|her|their|my) )?own li(?:fe|ves)",
     r"funerals?", r"obituar(?:y|ies)", r"massacres?", r"shootings?", r"shot dead",
     r"stabb(?:ed|ing|ings)", r"overdos(?:e|es|ed)", r"bod(?:y|ies) found",
-    r"crash(?:es|ed|ing)?", r"wreck(?:age)?", r"tragedy", r"tragedies", r"tragic(?:ally)?", r"disasters?",
-    r"casualt(?:y|ies)", r"wounded", r"hostages?", r"stampede", r"fatalit(?:y|ies)", r"mourn(?:s|ed|ing)?",
-    r"death toll", r"cockpit voice recorders?", r"black box",
     r"terror(?:ist|ists|ism)?", r"bomb(?:s|ing|ings|ed)?", r"explosions?", r"victims?", r"war crimes?",
     # abuse / sexual / adult content
     r"rape[ds]?", r"rapist", r"sexual(?:ly|ity)?", r"sex(?:ting|ist|ism|es)?", r"porn\w*", r"xxx", r"nsfw",
