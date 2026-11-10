@@ -23,7 +23,7 @@ today="$(date -u +%F)"
 
 if [ -f "data/daily/$today.json" ]; then
   log "Digest for $today exists; making sure it is published"
-  exec "$REPO_DIR/scripts/publish_site.sh"
+  exec bash "$REPO_DIR/scripts/publish_site.sh"
 fi
 
 online=0
@@ -34,5 +34,5 @@ done
 if [ "$online" -ne 1 ]; then log "No network after 5 minutes; giving up until next boot"; exit 1; fi
 
 log "Digest for $today is missing; running it now"
-"$REPO_DIR/run_digest.sh"
+bash "$REPO_DIR/run_digest.sh"
 log "Done"
