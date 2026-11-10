@@ -12,6 +12,12 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 mkdir -p "$REPO_DIR/logs"
+# Manual run in a terminal: show output AND append it to the log file, so
+# logs/catchup.log always has the full history. (From the systemd timer / cron
+# stdout is not a terminal and is already appended to that file, so skip this.)
+if [ -t 1 ]; then
+  exec > >(tee -a "$REPO_DIR/logs/catchup.log") 2>&1
+fi
 log() { echo "$(date -Is) [catchup] $*"; }
 
 # One digest at a time. Wait (up to 1h) for a scheduled run still in progress.
