@@ -148,18 +148,11 @@ def _is_article_relevant(category: Optional[str], article: Dict[str, Any]) -> bo
 
 
 # --- Content filter ----------------------------------------------------------
-# Keeps the digest pleasant: skips stories about death/violence and about
-# abuse/adult content. Matches whole words in the title + description.
+# Keeps the digest family-friendly: skips stories about sexual/adult content
+# and abuse. Violence, crime, accidents and death are NOT filtered. Matches whole words in the title + description.
 # (Piracy / hacking / cyberattack stories are deliberately allowed.)
 # Add your own words (comma separated) with NEWS_BLOCKLIST in ven.env.
 _BLOCKED_PATTERNS: List[str] = [
-    # death / violence
-    r"dead", r"deaths?", r"dies", r"died", r"dying", r"deadly",
-    r"kill(?:s|ed|ing|er|ers|ings)?", r"murder(?:s|ed|er|ers|ing)?", r"homicides?",
-    r"manslaughter", r"slain", r"suicides?", r"(?:took|take|takes|taken|taking) (?:(?:his|her|their|my) )?own li(?:fe|ves)",
-    r"funerals?", r"obituar(?:y|ies)", r"massacres?", r"shootings?", r"shot dead",
-    r"stabb(?:ed|ing|ings)", r"overdos(?:e|es|ed)", r"bod(?:y|ies) found",
-    r"terror(?:ist|ists|ism)?", r"bomb(?:s|ing|ings|ed)?", r"explosions?", r"victims?", r"war crimes?",
     # abuse / sexual / adult content
     r"rape[ds]?", r"rapist", r"sexual(?:ly|ity)?", r"sex(?:ting|ist|ism|es)?", r"porn\w*", r"xxx", r"nsfw",
     r"onlyfans", r"erotic\w*", r"fetish\w*", r"hentai", r"explicit", r"obscene", r"indecent",

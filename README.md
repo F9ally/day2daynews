@@ -37,7 +37,7 @@ Config lives in `ven.env` (copy `ven.env.example`): `NEWS_API_KEY`, `NEWS_API_UR
 
 ## Content filter
 
-Stories are skipped when their title/description contain whole words about death/violence, abuse/adult content, or piracy/hacking (see `_BLOCKED_PATTERNS` in `scripts/fetch_and_publish_digest.py`). The fetcher looks through every article on each page of results, so a blocked story just means the next one is used. Add your own words in `ven.env`:
+Stories are skipped when their title/description contain whole words about sexual/adult content or abuse (violence, crime, accidents, piracy and hacking are allowed) (see `_BLOCKED_PATTERNS` in `scripts/fetch_and_publish_digest.py`). The fetcher looks through every article on each page of results, so a blocked story just means the next one is used. Add your own words in `ven.env`:
 
 ```
 NEWS_BLOCKLIST=word one,another phrase
