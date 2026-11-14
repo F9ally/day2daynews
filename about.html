@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About & Donate - Day2Day News</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+    body {
+      background: #f9f9f9;
+      color: #222;
+      line-height: 1.6;
+      padding: 1rem;
+      max-width: 800px;
+      margin: auto;
+    }
+    header {
+      text-align: center;
+      padding: 1.5rem 0;
+    }
+    header h1 {
+      font-size: 2.5rem;
+      color: #111;
+    }
+    section {
+      margin: 2rem 0;
+    }
+    .card {
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      transition: transform 0.2s ease;
+    }
+    .card:hover {
+      transform: scale(1.01);
+    }
+    .corner-links {
+      position: fixed;
+      top: 1rem;
+      left: 0;
+      width: auto;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .corner-link {
+      display: flex;
+      align-items: center;
+      background: #e8f0fe;
+      border-left: 4px solid #4285f4;
+      border-radius: 0.5rem;
+      padding: 0.5rem 1rem 0.5rem 2.2rem;
+      min-width: 120px;
+      font-weight: 600;
+      text-decoration: none;
+      color: #222;
+      box-shadow: 0 2px 8px rgba(66,133,244,0.06);
+      position: fixed;
+      top: 1rem;
+      pointer-events: auto;
+      transition: background 0.2s;
+    }
+    .corner-link:hover {
+      background: #d2e3fc;
+    }
+    .corner-link .rect-icon {
+      position: absolute;
+      left: 0.7rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 1.1rem;
+      height: 1.1rem;
+      background: #4285f4;
+      border-radius: 0.2rem;
+      display: inline-block;
+    }
+    .corner-link.home {
+      left: 1rem;
+    }
+    @media (max-width: 700px) {
+      .corner-links {
+        position: static;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+      .corner-link {
+        position: static;
+        margin: 0 0.5rem 0 0;
+        width: 48%;
+        min-width: unset;
+        justify-content: flex-start;
+        padding: 0.5rem 1rem;
+        border-left: 4px solid #4285f4;
+      }
+      .corner-link:last-child {
+        margin-right: 0;
+      }
+      .corner-link .rect-icon {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="corner-links">
+    <a href="index.html" class="corner-link home">
+      <span class="rect-icon"></span>
+      Home
+    </a>
+  </div>
+
+  <header>
+    <h1>About & Donate</h1>
+    <p>Learn more about Day2Day News and how you can support us</p>
+  </header>
+
+  <section id="about">
+    <div class="card">
+      <h2>About Day2Day News</h2>
+      <p>Day2Day News is your go-to source for quick, reliable summaries of the most important events happening each day around the world. This is bite sized news without the bulk.</p>
+      <p>Curated daily by AI, our goal is to help you stay informed in under 5 minutes a day. We go through testing to insure information is accurate and trustworthy. However AI can make mistakes, so always verify the source. Links to the entire news feeds are always available, simply click on the title to get redirected to the source.
+      <p>Day2Day News is a project by Astronaut, an independent website and app developer.
+      <p>To save to your home screen for easy access, simply tap the three dots and select "Add to Home Screen".</p>
+      </p>
+      </p>
+    </div>
+  </section>
+
+  <section id="support-us">
+    <h2>Support Us</h2>
+    <div class="card">
+      <p>If you find Day2Day News helpful, please consider supporting us! Your donation helps keep this website running and completely free for everyone.</p>
+      <ul>
+        <li>Tip via Revolut: <a href="https://revolut.me/loical" target="_blank">revolut.me/loical</a></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <div class="card">
+      <p>Have questions, feedback, or want to get in touch? We'd love to hear from you!</p>
+      <ul>
+        <li>Email: <a href="mailto:hello@day2day.ai">justwebsites.contact@gmail.com</a></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+   © 2025 Day2Day News Summaries. An Astronaut Website. AI can make mistakes. All rights reserved. Day2Day News does not endorse any ideas, political parties or products.
+  </footer>
+  <script>
+    // Apply dark mode based on localStorage (sync with index.html)
+    const applyDarkMode = () => {
+      const body = document.body;
+      body.style.background = '#0f1419';
+      body.style.color = '#e6edf3';
+      const h1 = document.querySelector('header h1');
+      if (h1) h1.style.color = '#e6edf3';
+      document.querySelectorAll('section h2').forEach(h2 => { h2.style.color = '#e6edf3'; });
+
+      document.querySelectorAll('.card').forEach(card => {
+        card.style.background = '#161b22';
+        card.style.color = '#e6edf3';
+        card.style.boxShadow = '0 4px 16px rgba(0,0,0,0.40)';
+      });
+
+      const footer = document.querySelector('footer');
+      if (footer) {
+        footer.style.background = 'none';
+        footer.style.color = '#9aa4b2';
+        footer.style.borderTop = '';
+      }
+
+      document.querySelectorAll('.corner-link').forEach(link => {
+        link.style.background = '#161b22';
+        link.style.color = '#e6edf3';
+        link.style.borderLeft = '4px solid #8ab4f8';
+      });
+
+      // Inject CSS for links and hover
+      let styleEl = document.getElementById('darkmode-css');
+      if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = 'darkmode-css';
+        styleEl.textContent = `
+          a { color: #8ab4f8; }
+          a:hover { color: #9cc1ff; }
+          .corner-link:hover { background: #1b2330 !important; }
+          .corner-link .rect-icon { background: #8ab4f8 !important; }
+        `;
+        document.head.appendChild(styleEl);
+      }
+    };
+
+    const applyLightMode = () => {
+      const body = document.body;
+      body.style.background = '#f9f9f9';
+      body.style.color = '#222';
+      const h1 = document.querySelector('header h1');
+      if (h1) h1.style.color = '#111';
+      document.querySelectorAll('section h2').forEach(h2 => { h2.style.color = '#222'; });
+
+      document.querySelectorAll('.card').forEach(card => {
+        card.style.background = '#fff';
+        card.style.color = '#222';
+        card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.05)';
+      });
+
+      const footer = document.querySelector('footer');
+      if (footer) {
+        footer.style.background = 'none';
+        footer.style.color = '#222';
+        footer.style.borderTop = '';
+      }
+
+      document.querySelectorAll('.corner-link').forEach(link => {
+        link.style.background = '#e8f0fe';
+        link.style.color = '#222';
+        link.style.borderLeft = '4px solid #4285f4';
+      });
+
+      const styleEl = document.getElementById('darkmode-css');
+      if (styleEl) styleEl.remove();
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('darkMode') === 'true') {
+        applyDarkMode();
+      } else {
+        applyLightMode();
+      }
+    });
+
+    // Listen for changes from other tabs/pages
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'darkMode') {
+        if (e.newValue === 'true') applyDarkMode(); else applyLightMode();
+      }
+    });
+  </script>
+</body>
+</html>
